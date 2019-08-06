@@ -17,7 +17,7 @@ end
 
 function Base.show(io::IO, fit::SVMFit)
     @printf(io, "Fitted linear SVM\n")
-    @printf(io, " *Non-zero weights: %d\n", count(w_i -> w_i ≠ 0, fit.w))
+    @printf(io, " * Non-zero weights: %d\n", count(w_i -> w_i ≠ 0, fit.w))
     @printf(io, " * Iterations: %d\n", fit.passes)
     @printf(io, " * Converged: %s\n", fit.converged)
 end
@@ -63,7 +63,7 @@ function cost(fit::SVMFit,
         l(w, x, y) = max(0, 1 - y * (w ⋅ x))
         risk += l(w, X[:, i], Y[i])
     end
-    return risk
+    return risk / m
 end
 
 
