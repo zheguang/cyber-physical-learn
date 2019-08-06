@@ -42,7 +42,8 @@ function svm(X::AbstractMatrix{<:Real},
              λ::Real = 0.1,
              ϵ::Real = 1e-6,
              max_passes::Integer = 100)
-    (w, t_converge) = pegasos_batch(X, Y, lambda = λ, maxpasses = max_passes)
+    #(w, t_converge) = pegasos_batch(X, Y, lambda = λ, maxpasses = max_passes)
+    (w, t_converge) = cddual(X, Y, maxpasses = max_passes)
     if t_converge < Inf
         SVMFit(w, Float32(λ), t_converge, true)
     else
@@ -140,8 +141,8 @@ function pegasos_batch(X::AbstractMatrix{<:Real},
     end
 
     # Allocate storage for repeated used arrays
-    deltaw = Array{Float64,1}(p)
-    w_tmp = Array{Float64,1}(p)
+    deltaw = Array{Float64,1}(undef, p)
+    w_tmp = Array{Float64,1}(undef, p)
 
     # Loop
     for t in 1:maxpasses
@@ -186,6 +187,84 @@ function pegasos_batch(X::AbstractMatrix{<:Real},
     end
 
     return (w, maxpasses)
+end
+
+# Randomization option slows down processing
+# but improves quality of solution considerably
+# Would be better to do randomization in place
+function cddual(X::AbstractMatrix{<:Real},
+                         Y::AbstractVector{<:Real};
+                         C::Real = 1.0,
+                         norm::Integer = 2,
+                         randomized::Bool = true,
+                         maxpasses::Integer = 2)
+    # l: # of samples
+    # n: # of features
+    n, l = size(X)
+    alpha = zeros(Float64, l)
+    w = zeros(Float64, n)
+
+    # Set U and D
+    #  * L1-SVM: U = C, D[i] = 0
+    #  * L2-SVM: U = Inf, D[i] = 1 / (2C)
+    U = 0.0
+    if norm == 1
+        U = C
+        D = zeros(Float64, l)
+    elseif norm == 2
+        U = Inf
+        D = fill(1.0 / (2.0 * C), l)
+    else
+        throw(ArgumentError("Only L1-SVM and L2-SVM are supported"))
+    end
+
+    # Set Qbar
+    Qbar = Array{Float64,1}(undef, l)
+    for i in 1:l
+        Qbar[i] = D[i] + dot(X[:, i], X[:, i])
+    end
+
+    # Loop over examples
+    converged = false
+    pass = 0
+
+    while !converged
+        # Assess convergence
+        pass += 1
+        if pass == maxpasses
+            converged = true
+        end
+
+        # Choose order of observations to process
+        if randomized
+            indices = randperm(l)
+        else
+            indices = 1:l
+        end
+
+        # Process all observations
+        for i in indices
+            g = Y[i] * dot(w, X[:, i]) - 1.0 + D[i] * alpha[i]
+
+            if alpha[i] == 0.0
+                pg = min(g, 0.0)
+            elseif alpha[i] == U
+                pg = max(g, 0.0)
+            else
+                pg = g
+            end
+
+            if abs(pg) > 0.0
+                alphabar = alpha[i]
+                alpha[i] = min(max(alpha[i] - g / Qbar[i], 0.0), U)
+                for j in 1:n
+                    w[j] = w[j] + (alpha[i] - alphabar) * Y[i] * X[j, i]
+                end
+            end
+        end
+    end
+
+    return (w, pass)
 end
 
 

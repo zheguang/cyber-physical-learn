@@ -8,7 +8,7 @@ using .RoomTemperature
 include("SVM.jl")
 using .SVM
 
-t_max = 10 # seconds
+t_max = 1000 # seconds
 data = RoomTemperature.simulate(t_max)
 
 # learn rules to turn on heater
@@ -26,13 +26,16 @@ rng = MersenneTwister(1234)
 du_on = 1.0
 
 # make the points separable
-data_transit = filter(row -> row[:du] == du_on, data)
-@show size(data_transit)
-@show T_transit_max, T_transit_min = maximum(data_transit[!, :T]), minimum(data_transit[!, :T])
+#data_transit = filter(row -> row[:du] == du_on, data)
+#@show size(data_transit)
+#@show T_transit_max, T_transit_min = maximum(data_transit[!, :T]), minimum(data_transit[!, :T])
 #within_transit_noise = (T_transit_min - 0.5 .≤ data[!, :T_0]) .& (data[!, :T_0] .≤ T_transit_max + 0.5)
-within_transit_noise = (T_transit_min - 0.5 .≤ data[!, :T]) .& (data[!, :T] .≤ T_transit_max + 0.5) .& (data[!, :du] .!= du_on)
+#within_transit_noise = (T_transit_min - 0.5 .≤ data[!, :T]) .& (data[!, :T] .≤ T_transit_max + 0.5) .& (data[!, :du] .!= du_on)
 #data[within_transit_noise, :du] .= du_on)
-data = data[.!within_transit_noise, :]
+#data = data[.!within_transit_noise, :]
+
+# get rid of initial points
+data = data[round(Int, size(data, 1) * 0.1):end, :]
 
 X = transpose(convert(Matrix, data[!, [:T]]))
 Y = [du == du_on ? 1.0 : -1.0 for du in data[!, :du]]
@@ -49,7 +52,7 @@ train = ones(m) .== 1
 test = train
 
 λ = 0.01
-max_passes = 1000
+max_passes = 10000
 
 @show model = svm(X[:,train], Y[train], max_passes = max_passes, λ = λ)
 
@@ -60,12 +63,14 @@ max_passes = 1000
 
 # more info
 # show an example of a training example...
-@show u_condition
+@show u_0_condition
 @show X[:,train][:, 1]
 @show size(X)
 
 @show model.w
 @show model.λ
+
+@show -model.w[2] / model.w[1]
 
 # show size of filtered data
 @show size(data)
