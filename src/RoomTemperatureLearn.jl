@@ -1,4 +1,4 @@
-#module RoomTemperatureLearn
+module RoomTemperatureLearn
 
 using StatsBase, Random, LinearAlgebra, Gadfly
 
@@ -8,7 +8,7 @@ using .RoomTemperature
 include("SVM.jl")
 using .SVM
 
-t_max = 1000 # seconds
+t_max = 100 # seconds
 data = RoomTemperature.simulate(t_max)
 
 # learn rules to turn on heater
@@ -26,13 +26,13 @@ rng = MersenneTwister(1234)
 du_on = 1.0
 
 # make the points separable
-#data_transit = filter(row -> row[:du] == du_on, data)
-#@show size(data_transit)
-#@show T_transit_max, T_transit_min = maximum(data_transit[!, :T]), minimum(data_transit[!, :T])
-#within_transit_noise = (T_transit_min - 0.5 .≤ data[!, :T_0]) .& (data[!, :T_0] .≤ T_transit_max + 0.5)
-#within_transit_noise = (T_transit_min - 0.5 .≤ data[!, :T]) .& (data[!, :T] .≤ T_transit_max + 0.5) .& (data[!, :du] .!= du_on)
-#data[within_transit_noise, :du] .= du_on)
-#data = data[.!within_transit_noise, :]
+data_transit = filter(row -> row[:du] == du_on, data)
+@show size(data_transit)
+@show T_transit_max, T_transit_min = maximum(data_transit[!, :T]), minimum(data_transit[!, :T])
+within_transit_noise = (T_transit_min - 0.5 .≤ data[!, :T_0]) .& (data[!, :T_0] .≤ T_transit_max + 0.5)
+# todo: softmargin.  stop-gap: make points separable
+data[within_transit_noise, :du] .= du_on
+
 
 # get rid of initial points
 data = data[round(Int, size(data, 1) * 0.1):end, :]
@@ -75,4 +75,4 @@ max_passes = 10000
 # show size of filtered data
 @show size(data)
 
-#end # RoomTemperaturerLearn
+end # RoomTemperaturerLearn
