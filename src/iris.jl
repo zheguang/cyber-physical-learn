@@ -1,7 +1,7 @@
 module Iris
 using RDatasets, Random, LinearAlgebra
 
-include("../src/SVM.jl")
+include("SVM.jl")
 using .SVM
 
 rng = MersenneTwister(1234)
