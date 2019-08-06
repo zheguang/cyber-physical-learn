@@ -17,7 +17,7 @@ data = RoomTemperature.simulate(t_max)
 # plot a window of data
 plot(data[1:100, :], x=:t, y=:T, color=:du)
 
-# try to feed data as is
+# Learn the joint of heater state and room temperature
 rng = MersenneTwister(1234)
 
 X = transpose(convert(Matrix, data[!, [:u, :T]]))
@@ -25,9 +25,6 @@ X = transpose(convert(Matrix, data[!, [:u, :T]]))
 n, m = size(X)
 
 Y = [du == 1.0 ? 1.0 : -1.0 for du in data[!, :du]]
-
-train = bitrand(rng, m)
-test = .!train
 
 train = bitrand(rng, m)
 test = .!train

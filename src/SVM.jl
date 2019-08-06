@@ -109,10 +109,10 @@ function pegasos(X::AbstractMatrix{<:Real},
             @show cost(SVMFit(w, λ, T, t_converge < Inf), X, Y)
         end
 
-        if norm(η * ∇_w, 2) < ϵ
-            t_converge = t
-            break
-        end
+#        if norm(η * ∇_w, 2) < ϵ
+#            t_converge = t
+#            break
+#        end
     end
 
     return (w, t_converge)
