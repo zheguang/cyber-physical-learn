@@ -15,14 +15,19 @@ data = RoomTemperature.simulate(t_max)
 @show size(data)
 
 # plot a window of data
-plot(data[1:100, :], x=:t, y=:T, color=:du)
+#plot(data[1:100, :], x=:t, y=:T, color=:du)
 
 # Learn the joint of heater state and room temperature
 rng = MersenneTwister(1234)
 
 X = transpose(convert(Matrix, data[!, [:u, :T]]))
 
-n, m = size(X)
+@show n, m = size(X)
+
+# Add intercept term's coefficient -1 for each example
+X = cat(X, -ones(m)'; dims=(1))
+
+@show size(X)
 
 Y = [du == 1.0 ? 1.0 : -1.0 for du in data[!, :du]]
 
