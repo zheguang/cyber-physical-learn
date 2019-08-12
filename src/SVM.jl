@@ -4,24 +4,17 @@ using StatsBase
 import StatsBase: predict # Import to override
 
 using Printf, LinearAlgebra, Random, Distributions
+using JuMP, Ipopt
 
 export svm, predict, cost, accuracy, pegasos
 
 struct SVMFit
     w::Vector{Float64}
     λ::Float32
-    passes::Int32
-    converged::Bool
+    passes::Union{Int32, Nothing}
+    converged::Union{Bool, Nothing}
+    optimal::Union{Bool, Nothing}
 end
-
-
-function Base.show(io::IO, fit::SVMFit)
-    @printf(io, "Fitted linear SVM\n")
-    @printf(io, " * Non-zero weights: %d\n", count(w_i -> w_i ≠ 0, fit.w))
-    @printf(io, " * Iterations: %d\n", fit.passes)
-    @printf(io, " * Converged: %s\n", fit.converged)
-end
-
 
 function predict(fit::SVMFit, X::AbstractMatrix{<:Real})
     n, m = size(X)
@@ -36,21 +29,34 @@ function predict(fit::SVMFit, X::AbstractMatrix{<:Real})
     return preds
 end
 
+@enum Optimizer begin
+    PegasosBatch
+    CDDual
+    InteriorPoint
+end
 
 function svm(X::AbstractMatrix{<:Real},
              Y::AbstractVector{<:Real};
+             optimizer::Optimizer,
              λ::Real = 0.1,
              ϵ::Real = 1e-6,
              max_passes::Integer = 100)
-    #(w, t_converge) = pegasos_batch(X, Y, lambda = λ, maxpasses = max_passes)
-    (w, t_converge) = cddual(X, Y, maxpasses = max_passes)
-    if t_converge < Inf
-        SVMFit(w, Float32(λ), t_converge, true)
+    svmFit = undef
+    if optimizer == PegasosBatch
+        (w, t_converge) = pegasos_batch(X, Y, lambda = λ, maxpasses = max_passes)
+        svmFit = SVMFit(w, Float32(λ), t_converge, t_converge < Inf, nothing)
+    elseif optimizer == CDDual
+        (w, t_converge) = cddual(X, Y, norm = 1, maxpasses = max_passes)
+        svmFit = SVMFit(w, Float32(λ), t_converge, t_converge < Inf, nothing)
+    elseif optimizer == InteriorPoint
+        (w, optimal) = interiorPoint(X, Y; λ = λ)
+        svmFit = SVMFit(w, Float32(λ), nothing, nothing, optimal)
     else
-        SVMFit(w, Float32(λ), max_passes, false)
+        error("unsupported optimizer type: $(optimizer)")
     end
-end
 
+    return svmFit
+end
 
 function cost(fit::SVMFit,
               X::AbstractMatrix{<:Real},
@@ -74,6 +80,36 @@ function accuracy(fit::SVMFit,
     n, m = size(X)
     return count(predict(fit, X) .== Y) / m
 end
+
+
+function interiorPoint(X::AbstractMatrix{<:Real},
+                       Y::AbstractVector{<:Real};
+                       λ::Real = 0.1)
+    n, m = size(X)
+
+    model = Model(with_optimizer(Ipopt.Optimizer))
+    @variable(model, w[1:n])
+    @objective(model, Min, w ⋅ w)
+    for i in 1:m
+        @constraint(model, Y[i] * (w ⋅ X[:, i]) ≥ 1)
+    end
+
+    optimize!(model)
+
+    w_sol, optimal = undef, undef # hack, indication of solution status
+    if termination_status(model) == MOI.OPTIMAL
+        w_sol = value.(w)
+        optimal = true
+    elseif has_values(model)
+        w_sol = value.(w)
+        optimal = false
+    #else
+        #warn("The model was not solved correctly.")
+    end
+
+    return (w_sol, optimal)
+end
+
 
 
 function pegasos(X::AbstractMatrix{<:Real},
@@ -193,11 +229,11 @@ end
 # but improves quality of solution considerably
 # Would be better to do randomization in place
 function cddual(X::AbstractMatrix{<:Real},
-                         Y::AbstractVector{<:Real};
-                         C::Real = 1.0,
-                         norm::Integer = 2,
-                         randomized::Bool = true,
-                         maxpasses::Integer = 2)
+                Y::AbstractVector{<:Real};
+                C::Real = 1.0,
+                norm::Integer = 2,
+                randomized::Bool = true,
+                maxpasses::Integer = 2)
     # l: # of samples
     # n: # of features
     n, l = size(X)
