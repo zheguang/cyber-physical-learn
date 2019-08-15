@@ -51,10 +51,10 @@ n, m = size(X)
 train = ones(m) .== 1
 test = train
 
-λ = 0.01
-max_passes = 10000
-
-@show model = svm(X[:,train], Y[train], max_passes = max_passes, λ = λ)
+#λ = 0.01
+#max_passes = 10000
+#@show model = svm(X[:,train], Y[train]; optimizer=SVM.CDDual, max_passes = max_passes, λ = λ)
+@show model = svm(X[:,train], Y[train]; optimizer=SVM.InteriorPoint)
 
 @show train_cost = cost(model, X[:,train], Y[train])
 
