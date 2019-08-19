@@ -1,6 +1,6 @@
 module RoomTemperatureLearn
 
-using StatsBase, Random, LinearAlgebra, Gadfly
+using StatsBase, Random, LinearAlgebra, Gadfly, Distributions
 
 include("RoomTemperature.jl")
 using .RoomTemperature
@@ -41,8 +41,17 @@ X = transpose(convert(Matrix, data[!, [:T]]))
 Y = [du == du_on ? 1.0 : -1.0 for du in data[!, :du]]
 n, m = size(X)
 
+# What if we add some other unrelated measurements?
+T_ind = rand(rng, Normal(10, 5), m)
+X = vcat(X, T_ind')
+
+# What if we add some other related measurements?
+T = X[1, :]
+T_dep = 2T .- 1
+X = vcat(X, T_dep')
+
 # Add bias term 1 for each example
-X = cat(X, ones(m)'; dims=(1))
+X = vcat(X, ones(m)')
 n, m = size(X)
 
 # bad: this probably leaves out those rare transition points!
@@ -70,6 +79,7 @@ test = train
 @show model.w
 @show model.λ
 
+# wx + b = 0 ⟹ [w; b] ⋅ [x; 1] = 0 is the boundary.  Here we make w := [w; b]
 @show -model.w[2] / model.w[1]
 
 # show size of filtered data
