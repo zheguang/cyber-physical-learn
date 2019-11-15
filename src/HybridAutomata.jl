@@ -56,6 +56,21 @@ function H_1(y, u, C, D)
     return u_next
 end
 
+# For n_u bit control, there are 2n_u step functions, 2 for each bit.
+# C is a 2n_u by n_y matrix with ±1 and 0. C * y means relate to each control bit the relevant processes with positive relation (<) or negative relation (>).
+# y is the process
+# D is a 2n_u vector
+function H_n(y, u, C, D)
+    s = rand(size(u)[1] * 2)
+    for i in 1:size(u)[1]
+        s[2*i-1] = 1 - u[i]
+        s[2*i] = u[i]
+    end
+
+    step_funs = C * y + D .< 0
+    u_next = (u + step_funs[s .== 1]) .% 2
+    return u_next
+end
 
 
 function h_1(y, u)
@@ -138,6 +153,12 @@ function trajectory(T, A, B, y₀, u₀, h)
     end
     (Y, U)
 end
+
+function trajectory_with_H(T, A, B, C, D, y_0, u_0, H)
+    h(y, u) = H(y, u, C, D)
+    trajectory(T, A, B, y_0, u_0, h)
+end
+
 
 
 function ols(Y_out, Y_in, U_in)
