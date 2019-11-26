@@ -1,4 +1,6 @@
-using JuMP, Ipopt, LinearAlgebra
+using JuMP, Ipopt, LinearAlgebra, Random, Distributions
+using Gadfly
+
 
 # case 1: 1-bit logical control, 1 transition condition, 1 process (done)
 # case 2: 2-bit logical control (ind), 1 transition condition (1 proc-dep), 2 processes (ind) (done)
@@ -13,11 +15,15 @@ using JuMP, Ipopt, LinearAlgebra
 # h_1_mp: 1 transition condition for 1-bit control, based on multiple processes
 # h_2: 2 transition condition for 2-bit control, based on single process each
 
-
+# y is n_y column vector
+# u is n_u column vector
+# A is n_y x n_y matrix, dynamics of physical quantities
+# B is n_y x n_u matrix, effect exerted by logical control to physical quantities
 function f(A, B, y, u)
-    A * y + B * u
+    d = Normal()
+    e = rand(d, size(y)[1])
+    A * y + B * u + e
 end
-
 
 function example_f_case_3()
     # 2-bit control (ind), 2 processes (ind)
@@ -25,7 +31,9 @@ function example_f_case_3()
     B = Diagonal([4; 5])
     y = [20; 20]
     u = [0; 0]
-    A, B, y, u
+    C = [1 0; -1 0; 0 1; 0 -1]
+    D = [-20; 25; -20; 25]
+    A, B, y, u, C, D
 end
 
 
@@ -36,32 +44,58 @@ function example_f_case_4()
          2  5]
     y = [20; 20]
     u = [0; 0]
-    A, B, y, u
+    C = [1 0; -1 0; 0 1; 0 -1]
+    D = [-20; 25; -20; 25]
+    A, B, y, u, C, D
 end
 
 
 function example_f_case_5()
+    # 2-bit control (ind), 2 processes (rel)
+    A = [0.9  -0.2;
+         0.2  0.85]
+    B = Diagonal([4; 5])
+    y = [20; 20]
+    u = [0; 0]
+    C = [1 0; -1 0; 0 1; 0 -1]
+    D = [-20; 25; -20; 25]
+    A, B, y, u, C, D
+end
+
+function example_f_case_6()
     # 2-bit control (rel), 2 processes (rel)
-    A = [0.9  0.3;
+    A = [0.9  -0.2;
          0.2  0.85]
     B = [4  1;
          2  5]
     y = [20; 20]
     u = [0; 0]
-    A, B, y, u
+    C = [1 0; -1 0; 0 1; 0 -1]
+    D = [-20; 25; -20; 25]
+    A, B, y, u, C, D
 end
 
-function H_1(y, u, C, D)
-    u_next = (u + ([(1 .- u)'; u']' * (C * [y'; y'] + D) .< 0)' ) .% 2
-    return u_next
+function example_f_case_7()
+    # 2-bit control (rel), 2 processes (rel)
+    A = [0.9  -0.2;
+         0.2  0.85]
+    B = [4  1;
+         2  5]
+    y = [20; 20]
+    u = [0; 0]
+    C = [1 -0.2; -1 -0.2; 0.2 1;0.2 -1]
+    D = [-20; 25; -20; 25]
+    A, B, y, u, C, D
 end
 
 # For n_u bit control, there are 2n_u step functions, 2 for each bit.
 # C is a 2n_u by n_y matrix with ±1 and 0. C * y means relate to each control bit the relevant processes with positive relation (<) or negative relation (>).
 # y is the process
 # D is a 2n_u vector
-function H_n(y, u, C, D)
-    s = rand(size(u)[1] * 2)
+# The (2i)-th row of C * y + D denotes constraint for the i-th bit control = 0. (2i-1)-th row denotes =1.
+function H(y, u, C, D)
+    # s is boolean vector indicating whether the i-th bit control is on or off by its entry 2i and 2i-1
+    s = zeros(size(u)[1] * 2)
     for i in 1:size(u)[1]
         s[2*i-1] = 1 - u[i]
         s[2*i] = u[i]
@@ -73,70 +107,70 @@ function H_n(y, u, C, D)
 end
 
 
-function h_1(y, u)
-    # 1-bit control transition, each with single process dependence
-    u′ = zeros(size(u))
+# function h_1(y, u)
+#     # 1-bit control transition, each with single process dependence
+#     u′ = zeros(size(u))
 
-    # heater: 1st bit
-    b = 1
-    if u[b] == 0
-        if y[b] < 20  # y[b] - 20 < 0
-            u′[b] = 1
-        else
-            u′[b] = u[b]
-        end
-    else
-        # u == 1
-        if y[b] > 25 # 25 - y[b] < 0
-            u′[b] = 0
-        else
-            u′[b] = u[b]
-        end
-    end
-    u′
-end
+#     # heater: 1st bit
+#     b = 1
+#     if u[b] == 0
+#         if y[b] < 20  # y[b] - 20 < 0
+#             u′[b] = 1
+#         else
+#             u′[b] = u[b]
+#         end
+#     else
+#         # u == 1
+#         if y[b] > 25 # 25 - y[b] < 0
+#             u′[b] = 0
+#         else
+#             u′[b] = u[b]
+#         end
+#     end
+#     u′
+# end
 
 
-function h_2(y, u)
-    # 2-bit control transition, each with singel process dependence
-    u′ = zeros(size(u))
+# function h_2(y, u)
+#     # 2-bit control transition, each with singel process dependence
+#     u′ = zeros(size(u))
 
-    # heater: 1st bit
-    b = 1
-    if u[b] == 0
-        if y[b] < 20
-            u′[b] = 1
-        else
-            u′[b] = u[b]
-        end
-    else
-        # u == 1
-        if y[b] > 25
-            u′[b] = 0
-        else
-            u′[b] = u[b]
-        end
-    end
+#     # heater: 1st bit
+#     b = 1
+#     if u[b] == 0
+#         if y[b] < 20
+#             u′[b] = 1
+#         else
+#             u′[b] = u[b]
+#         end
+#     else
+#         # u == 1
+#         if y[b] > 25
+#             u′[b] = 0
+#         else
+#             u′[b] = u[b]
+#         end
+#     end
 
-    # heater: 2nd bit
-    b = 2
-    if u[b] == 0
-        if y[b] < 20
-            u′[b] = 1
-        else
-            u′[b] = u[b]
-        end
-    else
-        # u == 1
-        if y[b] > 25
-            u′[b] = 0
-        else
-            u′[b] = u[b]
-        end
-    end
+#     # heater: 2nd bit
+#     b = 2
+#     if u[b] == 0
+#         if y[b] < 20
+#             u′[b] = 1
+#         else
+#             u′[b] = u[b]
+#         end
+#     else
+#         # u == 1
+#         if y[b] > 25
+#             u′[b] = 0
+#         else
+#             u′[b] = u[b]
+#         end
+#     end
 
-    u′
-end
+#     u′
+# end
 
 
 function trajectory(T, A, B, y₀, u₀, h)
@@ -154,7 +188,7 @@ function trajectory(T, A, B, y₀, u₀, h)
     (Y, U)
 end
 
-function trajectory_with_H(T, A, B, C, D, y_0, u_0, H)
+function trajectory_H(T, A, B, C, D, y_0, u_0)
     h(y, u) = H(y, u, C, D)
     trajectory(T, A, B, y_0, u_0, h)
 end
@@ -167,7 +201,7 @@ function ols(Y_out, Y_in, U_in)
 
     n_y, n_t = size(Y_in)
     n_u = size(U_in)[1]
-    @show n_y, n_t, n_u
+    #@show n_y, n_t, n_u
 
     model = Model(with_optimizer(Ipopt.Optimizer))
 
@@ -192,9 +226,51 @@ function format_ols(Y, U)
 end
 
 
-function example()
-    A, B, y, u = example_f_case_3()
-    Y, U = trajectory(100, A, B, y, u, h_2)
+function example(example_f_case, T)
+    A, B, y, u, C, D = example_f_case()
+    Y, U = trajectory_H(T, A, B, C, D, y, u)
     Y_out, Y_in, U_in = format_ols(Y, U)
     ols(Y_out, Y_in, U_in)
+end
+
+function mse_trial(example_f_case, TSeq)
+    MSE = zeros(2, size(TSeq)[1])
+    for (j, T) in enumerate(TSeq)
+        A, B = example_f_case()
+        Â, B̂ = example(example_f_case, T)
+        MSE[:, j] = [norm(A - Â) / norm(A); norm(B - B̂) / norm(B)]
+        #MSERel[:, j] = [norm(A - Â) / norm(A); norm(B - B̂) / norm(B)]
+    end
+    MSE
+end
+
+function mse_n(example_f_case, TSeq, n_trials)
+    MSETrials_A = zeros(n_trials, size(TSeq)[1])
+    MSETrials_B = copy(MSETrials_A)
+    for i in 1:n_trials
+        MSE = mse_trial(example_f_case, TSeq)
+        MSETrials_A[i, :] = MSE[1, :]
+        MSETrials_B[i, :] = MSE[2, :]
+    end
+    MSETrials_A, MSETrials_B
+end
+
+
+function mse_n_plot(example_f_case, TSeq, n_trials)
+    MSETrials_A, MSETrials_B = mse_n(example_f_case, TSeq, n_trials)
+
+    MSEMean_A = mean(MSETrials_A, dims=1)
+    MSEMean_B = mean(MSETrials_B, dims=1)
+
+    MSEVar_A  = var(MSETrials_A, dims=1)
+    MSEVar_B  = var(MSETrials_B, dims=1)
+
+    @show MSEMean_A, MSEMean_B, MSEVar_A, MSEVar_B
+end
+
+function plots(example_f_case)
+    TSeq = [10; 100; Int(1e3); Int(1e4); Int(1e5)]
+    n_trials = 10
+    m_a, m_b, v_a, v_b = mse_n_plot(example_f_case, TSeq, n_trials)
+    [TSeq m_a' v_a' m_b' v_b']
 end
