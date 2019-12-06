@@ -233,44 +233,44 @@ function example(example_f_case, T)
     ols(Y_out, Y_in, U_in)
 end
 
-function mse_trial(example_f_case, TSeq)
-    MSE = zeros(2, size(TSeq)[1])
+function re_trial(example_f_case, TSeq)
+    RE = zeros(2, size(TSeq)[1])
     for (j, T) in enumerate(TSeq)
         A, B = example_f_case()
         Â, B̂ = example(example_f_case, T)
-        MSE[:, j] = [norm(A - Â) / norm(A); norm(B - B̂) / norm(B)]
-        #MSERel[:, j] = [norm(A - Â) / norm(A); norm(B - B̂) / norm(B)]
+        RE[:, j] = [norm(A - Â) / norm(A); norm(B - B̂) / norm(B)]
+        #RERel[:, j] = [norm(A - Â) / norm(A); norm(B - B̂) / norm(B)]
     end
-    MSE
+    RE
 end
 
-function mse_n(example_f_case, TSeq, n_trials)
-    MSETrials_A = zeros(n_trials, size(TSeq)[1])
-    MSETrials_B = copy(MSETrials_A)
+function re_n(example_f_case, TSeq, n_trials)
+    RETrials_A = zeros(n_trials, size(TSeq)[1])
+    RETrials_B = copy(RETrials_A)
     for i in 1:n_trials
-        MSE = mse_trial(example_f_case, TSeq)
-        MSETrials_A[i, :] = MSE[1, :]
-        MSETrials_B[i, :] = MSE[2, :]
+        RE = re_trial(example_f_case, TSeq)
+        RETrials_A[i, :] = RE[1, :]
+        RETrials_B[i, :] = RE[2, :]
     end
-    MSETrials_A, MSETrials_B
+    RETrials_A, RETrials_B
 end
 
 
-function mse_n_plot(example_f_case, TSeq, n_trials)
-    MSETrials_A, MSETrials_B = mse_n(example_f_case, TSeq, n_trials)
+function re_n_plot(example_f_case, TSeq, n_trials)
+    RETrials_A, RETrials_B = re_n(example_f_case, TSeq, n_trials)
 
-    MSEMean_A = mean(MSETrials_A, dims=1)
-    MSEMean_B = mean(MSETrials_B, dims=1)
+    REMean_A = mean(RETrials_A, dims=1)
+    REMean_B = mean(RETrials_B, dims=1)
 
-    MSEVar_A  = var(MSETrials_A, dims=1)
-    MSEVar_B  = var(MSETrials_B, dims=1)
+    REVar_A  = var(RETrials_A, dims=1)
+    REVar_B  = var(RETrials_B, dims=1)
 
-    @show MSEMean_A, MSEMean_B, MSEVar_A, MSEVar_B
+    @show REMean_A, REMean_B, REVar_A, REVar_B
 end
 
 function plots(example_f_case)
     TSeq = [10; 100; Int(1e3); Int(1e4); Int(1e5)]
     n_trials = 10
-    m_a, m_b, v_a, v_b = mse_n_plot(example_f_case, TSeq, n_trials)
+    m_a, m_b, v_a, v_b = re_n_plot(example_f_case, TSeq, n_trials)
     [TSeq m_a' v_a' m_b' v_b']
 end
